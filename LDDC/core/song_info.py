@@ -83,12 +83,22 @@ def get_audio_file_infos(file_path: Path) -> list[SongInfo]:
                 else:
                     album = None
 
+                if "tracknumber" in audio and "�" not in str(audio["tracknumber"][0]):
+                    track_number = str(audio["tracknumber"][0])
+                elif "TRCK" in audio and "�" not in str(audio["TRCK"][0]):
+                    track_number = str(audio["TRCK"][0])
+                else:
+                    track_number = None
+
+
+
                 metadata = SongInfo(
                     source=Source.Local,
+                    id=track_number,
                     title=title,
                     artist=Artist(artist),
                     album=album,
-                    duration=int(audio.info.length) * 1000 if audio.info.length * 1000 else None,
+                    duration=int(audio.info.length * 1000) if audio.info.length else None,
                     path=file_path,
                 )
             else:
