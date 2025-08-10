@@ -294,10 +294,15 @@ class Ui_settings:
 
         self.gridLayout_3.addWidget(self.auto_frame_rate_checkBox, 3, 6, 1, 2)
 
+        self.furigana_checkBox = QCheckBox(self.groupBox_3)
+        self.furigana_checkBox.setObjectName("furigana_checkBox")
+
+        self.gridLayout_3.addWidget(self.furigana_checkBox, 4, 6, 1, 2)
+
         self.show_local_song_lyrics_db_manager_button = QPushButton(self.groupBox_3)
         self.show_local_song_lyrics_db_manager_button.setObjectName("show_local_song_lyrics_db_manager_button")
 
-        self.gridLayout_3.addWidget(self.show_local_song_lyrics_db_manager_button, 4, 6, 1, 2)
+        self.gridLayout_3.addWidget(self.show_local_song_lyrics_db_manager_button, 5, 6, 1, 2)
 
         self.gridLayout_6.addWidget(self.groupBox_3, 3, 0, 1, 2)
 
@@ -644,6 +649,7 @@ class Ui_settings:
         self.played_del_color_button.setText(QCoreApplication.translate("settings", "\u5220\u9664\u989c\u8272", None))
         self.unplayed_del_color_button.setText(QCoreApplication.translate("settings", "\u5220\u9664\u989c\u8272", None))
         self.auto_frame_rate_checkBox.setText(QCoreApplication.translate("settings", "\u81ea\u9002\u5e94\u5e27\u7387", None))
+        self.furigana_checkBox.setText(QCoreApplication.translate("settings", "\u663e\u793a\u5e73\u5047\u540d\u6ce8\u97f3", None))
         self.show_local_song_lyrics_db_manager_button.setText(QCoreApplication.translate("settings", "\u6b4c\u8bcd\u5173\u8054\u7ba1\u7406", None))
         self.groupBox_6.setTitle(QCoreApplication.translate("settings", "\u5176\u4ed6", None))
         self.auto_check_update_checkBox.setText(QCoreApplication.translate("settings", "\u81ea\u52a8\u68c0\u67e5\u66f4\u65b0", None))

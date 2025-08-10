@@ -65,6 +65,7 @@ class SettingWidget(QWidget, Ui_settings):
         self.frame_rate_spinBox.setDisabled(self.auto_frame_rate_checkBox.isChecked())
         if cfg["desktop_lyrics_refresh_rate"] >= 0:
             self.frame_rate_spinBox.setValue(cfg["desktop_lyrics_refresh_rate"])
+        self.furigana_checkBox.setChecked(cfg["desktop_lyrics_show_furigana"])
 
         # 其他设置
         match cfg["language"]:
@@ -192,6 +193,9 @@ class SettingWidget(QWidget, Ui_settings):
                 cfg.setitem("desktop_lyrics_refresh_rate", -1 if self.auto_frame_rate_checkBox.isChecked() else self.frame_rate_spinBox.value()),
                 self.frame_rate_spinBox.setDisabled(self.auto_frame_rate_checkBox.isChecked()),
             ),
+        )
+        self.furigana_checkBox.stateChanged.connect(
+            lambda: cfg.setitem("desktop_lyrics_show_furigana", self.furigana_checkBox.isChecked()),
         )
 
         from .local_song_lyrics_db_manager import local_song_lyrics_db_manager

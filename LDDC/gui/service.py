@@ -55,6 +55,7 @@ from LDDC.core.algorithm import assign_lyrics_positions, find_closest_match
 from LDDC.core.api.lyrics import get_lyrics
 from LDDC.core.auto_fetch import auto_fetch
 from LDDC.core.converter import convert2
+from LDDC.core.ruby import contains_kana, generate_ruby
 from LDDC.gui.view.desktop_lyrics import DesktopLyric, DesktopLyrics, DesktopLyricsWidget, Direction
 from LDDC.gui.view.update import check_update
 
@@ -426,6 +427,7 @@ class DesktopLyricsInstance(ServiceInstanceBase):
         self.lyrics_path: None | Path = None
         self.song_info: SongInfo | None = None  # 歌曲信息
         self.assigned_lyrics_datas: dict[tuple[Literal[Direction.RIGHT, Direction.LEFT], int], list[tuple[int, FSLyricsLine]]] | None = None
+        self.rubys_mapping: dict[int, list[tuple[int, int, str]]] = {}
         self.config = {}
 
     @Slot(bool)
@@ -686,6 +688,15 @@ class DesktopLyricsInstance(ServiceInstanceBase):
         }
 
         self.assigned_lyrics_datas = assign_lyrics_positions(mulyrics_data["orig"])
+        self.rubys_mapping = {}
+        if cfg["desktop_lyrics_show_furigana"] and "roma" in self.lyrics_mapping:
+            ruby = False
+            for orig_index, orig_line in enumerate(mulyrics_data["orig"]):
+                text = "".join(word.text for word in orig_line.words)
+                if contains_kana(text) or ruby:
+                    ruby = True
+                    if roma_line := self.lyrics_mapping["roma"].get(orig_index):
+                        self.rubys_mapping[orig_index] = generate_ruby(orig_line, roma_line)
 
         self.to_select(True)
         self.update_lyrics()
@@ -836,7 +847,13 @@ class DesktopLyricsInstance(ServiceInstanceBase):
                     continue
 
                 text = "".join(word.text for word in display_line.words)  # 获取当前行歌词文本
-                rubys = []
+                if lang == "orig" and self.rubys_mapping:
+                    rubys = self.rubys_mapping.get(orig_index, [(0, 0, "")])
+                    if not rubys:
+                        rubys = [(0, 0, "")] # (0, 0, "")用于保持位置不变
+                else:
+                    rubys = []
+
 
                 # 添加歌词行
                 if not has_content(text):
@@ -897,6 +914,9 @@ class DesktopLyricsInstance(ServiceInstanceBase):
                 if "langs" in self.config:
                     self.config["langs"] = [lang for lang in value if lang in self.config["langs"]]
                     self.update_db_data()
+            case "desktop_lyrics_show_furigana":
+                if self.lyrics:
+                    self.set_lyrics(self.lyrics)
 
     def handle_stop(self) -> None:
         in_main_thread(self.widget.close)

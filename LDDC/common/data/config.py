@@ -67,6 +67,7 @@ class Config(dict):
             "desktop_lyrics_refresh_rate": -1,  # -1为自动
             "desktop_lyrics_rect": (),  # 默认为空自动移动到屏幕中央
             "desktop_lyrics_font_size": 30.0,
+            "desktop_lyrics_show_furigana": True,
 
             "language": "auto",
             "color_scheme": "auto",
@@ -128,6 +129,7 @@ class Config(dict):
             "desktop_lyrics_default_langs",
             "desktop_lyrics_refresh_rate",
             "desktop_lyrics_langs_order",
+            "desktop_lyrics_show_furigana",
         ):
             self.desktop_lyrics_changed.emit((key, value))
 

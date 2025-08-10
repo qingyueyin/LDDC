@@ -476,6 +476,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
            </widget>
           </item>
           <item row="4" column="6" colspan="2">
+           <widget class="QCheckBox" name="furigana_checkBox">
+            <property name="text">
+             <string>显示平假名注音</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="6" colspan="2">
            <widget class="QPushButton" name="show_local_song_lyrics_db_manager_button">
             <property name="text">
              <string>歌词关联管理</string>

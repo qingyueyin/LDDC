@@ -4,6 +4,7 @@
 """桌面歌词界面实现"""
 
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NewType
 
@@ -123,6 +124,7 @@ class DesktopLyricsSelectWidget(SearchWidgetBase):
             except Exception as e:
                 logger.exception(f"open local lyrics failed: {e}")
                 MsgBox.critical(self, self.tr("打开本地歌词失败"), str(e))
+
         dialog = QFileDialog(self)
         dialog.setWindowTitle(self.tr("打开本地歌词"))
         dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
@@ -135,8 +137,9 @@ class DesktopLyricsSelectWidget(SearchWidgetBase):
         if isinstance(self.lyrics, Lyrics):
             if self.lyrics.types.get("orig") != LyricsType.PlainText:
                 langs = self.langs
-                self.lyrics_selected.emit(self.lyrics, self.lyrics_path,
-                                          [lang for lang in cfg["desktop_lyrics_langs_order"] if lang in langs], self.offset_spinBox.value())
+                self.lyrics_selected.emit(
+                    self.lyrics, self.lyrics_path, [lang for lang in cfg["desktop_lyrics_langs_order"] if lang in langs], self.offset_spinBox.value()
+                )
                 return
             MsgBox.warning(self, self.tr("提示"), self.tr("不支持纯文本歌词"))
             return
@@ -195,14 +198,14 @@ class DesktopLyricsMenu(QMenu):
         super().__init__(parent)
         self._parent = parent
 
-        self.action_select = QAction(self.tr('选择歌词'), self)
-        self.action_set_inst = QAction(self.tr('标记为纯音乐'), self)
-        self.actino_set_auto_search = QAction(self.tr('禁用自动搜索(仅本曲)'), self)
-        self.action_unlink_lyrics = QAction(self.tr('取消歌词关联'), self)
-        self.action_show_local_song_lyrics_db_manager = QAction(self.tr('歌词关联管理器'), self)
-        self.action_show_hide = QAction(self.tr('显示/隐藏桌面歌词'), self)
-        self.action_show_main_window = QAction(self.tr('显示主窗口'), self)
-        self.action_set_mouse_penetration = QAction(self.tr('鼠标穿透'), self)
+        self.action_select = QAction(self.tr("选择歌词"), self)
+        self.action_set_inst = QAction(self.tr("标记为纯音乐"), self)
+        self.actino_set_auto_search = QAction(self.tr("禁用自动搜索(仅本曲)"), self)
+        self.action_unlink_lyrics = QAction(self.tr("取消歌词关联"), self)
+        self.action_show_local_song_lyrics_db_manager = QAction(self.tr("歌词关联管理器"), self)
+        self.action_show_hide = QAction(self.tr("显示/隐藏桌面歌词"), self)
+        self.action_show_main_window = QAction(self.tr("显示主窗口"), self)
+        self.action_set_mouse_penetration = QAction(self.tr("鼠标穿透"), self)
 
         self.actino_set_auto_search.setCheckable(True)
         self.action_set_mouse_penetration.setCheckable(True)
@@ -240,11 +243,13 @@ class DesktopLyricsMenu(QMenu):
     @Slot()
     def show_local_song_lyrics_db_manager(self) -> None:
         from .local_song_lyrics_db_manager import local_song_lyrics_db_manager
+
         local_song_lyrics_db_manager.show()
 
     @Slot()
     def show_main_window(self) -> None:
         from .main_window import main_window
+
         main_window.show_window()
 
 
@@ -257,7 +262,7 @@ class DesktopLyricsTrayIcon(QSystemTrayIcon):
         self.setup_ui()
 
     def setup_ui(self) -> None:
-        self.setToolTip(self.tr('LDDC桌面歌词'))
+        self.setToolTip(self.tr("LDDC桌面歌词"))
 
         # 将菜单设置为托盘图标的菜单
         self.setContextMenu(self._parent.menu)
@@ -490,6 +495,20 @@ class LyricsText(QWidget):
 
     update_lyrics_signal = Signal(list)
 
+    @dataclass
+    class RubyLayoutInfo:
+        """注音布局信息"""
+
+        chars: str
+        font: QFont
+        metrics: QFontMetricsF
+        x: float
+        width: float
+        base_start_x: float
+        base_width: float
+        scale_factor: float = 1.0
+        gap_per_char: float = 0.0
+
     def __init__(self, parent: DesktopLyricsWidgetBase) -> None:
         super().__init__(parent)
         self._parent = parent
@@ -520,6 +539,7 @@ class LyricsText(QWidget):
         self.pens = LimitedSizeDict(12)
         self.played_chars_cache = LimitedSizeDict(4)
         self.unplayed_chars_cache = LimitedSizeDict(4)
+        self.ruby_layouts_cache = LimitedSizeDict(16)
 
         self.lyrics = DesktopLyrics([])
         self.update_lyrics(DesktopLyrics([DesktopLyric([("欢迎使用LDDC桌面歌词", 12, 255, [(0, 12, "Welcome to LDDC Desktop Lyrics")])])]))
@@ -553,19 +573,95 @@ class LyricsText(QWidget):
 
         rudy_font = QFont(self.text_font)
         rudy_font.setPointSizeF(self.text_font.pointSizeF() * 0.6)
-        rudy_font_metrics = QFontMetricsF(rudy_font)
 
-        def get_ruby_gap_font(text_width: float, chars: str) -> tuple[float, QFont]:
-            """获取间隔宽度、字体"""
-            gap_width = text_width - rudy_font_metrics.horizontalAdvance(chars)
-            if gap_width >= 0:
-                return gap_width, rudy_font
-            c_font = QFont(rudy_font)
-            while gap_width < 0:
-                c_font.setPointSizeF(c_font.pointSizeF() * 0.9)
-                c_font_metrics = QFontMetricsF(c_font)
-                gap_width = text_width - c_font_metrics.horizontalAdvance(chars)
-            return gap_width, c_font
+        def _calculate_ruby_layouts(
+            rubys: list[tuple[int, int, str]], text: str, font_metrics: QFontMetricsF, rudy_font: QFont
+        ) -> list["LyricsText.RubyLayoutInfo"]:
+            if not rubys:
+                return []
+
+            # --- 性能优化: 预计算累积宽度 ---
+            cumulative_widths = [0.0] * (len(text) + 1)
+            for i, char in enumerate(text):
+                cumulative_widths[i + 1] = cumulative_widths[i] + font_metrics.horizontalAdvance(char)
+
+            # 步骤 1: 为所有注音进行初始布局计算
+            layouts: list[LyricsText.RubyLayoutInfo] = []
+            rudy_metrics = QFontMetricsF(rudy_font)
+            for start, end, chars in rubys:
+                if not chars:
+                    continue
+
+                base_width = cumulative_widths[end] - cumulative_widths[start]
+                start_x = cumulative_widths[start]
+                font = QFont(rudy_font)
+                ruby_width = rudy_metrics.horizontalAdvance(chars)
+
+                layouts.append(
+                    self.RubyLayoutInfo(
+                        chars=chars,
+                        font=font,
+                        metrics=rudy_metrics,
+                        x=0,
+                        width=ruby_width,
+                        base_start_x=start_x,
+                        base_width=base_width,
+                    )
+                )
+
+            if not layouts:
+                return []
+
+            # 步骤 2: 计算每个注音的可用空间和独立缩放因子
+            text_total_width = cumulative_widths[-1]
+            for i, layout in enumerate(layouts):
+                prev_end_x = layouts[i - 1].base_start_x + layouts[i - 1].base_width if i > 0 else 0
+                next_start_x = layouts[i + 1].base_start_x if i < len(layouts) - 1 else text_total_width
+
+                left_space = (layout.base_start_x - prev_end_x) / 2
+                right_space = (next_start_x - (layout.base_start_x + layout.base_width)) / 2
+                available_width = left_space + layout.base_width + right_space
+
+                if layout.width > available_width > 0:
+                    layout.scale_factor = available_width / layout.width
+
+            # 步骤 3: 决定全局缩放策略
+            GLOBAL_SCALE_THRESHOLD = 0.7
+            min_scale_factor = min((layout.scale_factor for layout in layouts), default=1.0)
+
+            if min_scale_factor < 1.0:
+                if min_scale_factor >= GLOBAL_SCALE_THRESHOLD:
+                    for layout in layouts:
+                        layout.scale_factor = min_scale_factor
+                else:
+                    for layout in layouts:
+                        layout.scale_factor = min(GLOBAL_SCALE_THRESHOLD, layout.scale_factor)
+
+            # 步骤 4: 应用缩放并重新计算布局
+            for layout in layouts:
+                if layout.scale_factor < 1.0:
+                    layout.font.setPointSizeF(layout.font.pointSizeF() * layout.scale_factor)
+                    layout.metrics = QFontMetricsF(layout.font)
+                    layout.width = layout.metrics.horizontalAdvance(layout.chars)
+                layout.x = layout.base_start_x + (layout.base_width - layout.width) / 2
+
+            # 步骤 5: 碰撞检测与位置调整
+            for i in range(1, len(layouts)):
+                prev_layout = layouts[i - 1]
+                current_layout = layouts[i]
+                overlap = (prev_layout.x + prev_layout.width) - current_layout.x
+                if overlap > 0:
+                    current_layout.x += overlap
+
+            # 步骤 6: 为比原文短的注音计算字符间距以实现两端对齐
+            for layout in layouts:
+                if layout.width < layout.base_width:
+                    gap_width = layout.base_width - layout.width
+                    if len(layout.chars) > 1:
+                        layout.gap_per_char = gap_width / (len(layout.chars) - 1)
+                        layout.x = layout.base_start_x
+
+            return layouts
 
         def get_pen(colors: tuple, y: float, height: float) -> QPen:
             """创建渐变色的画笔"""
@@ -576,6 +672,7 @@ class LyricsText(QWidget):
                     gradient.setColorAt(i / (len(colors) - 1), QColor(*color))
                 self.pens[query] = QPen(QBrush(gradient), 0)
             return self.pens[query]
+
         y = 0
 
         def draw_text(x: float, y: float, ratio: float, texts: str, alpha: int, ruby: bool = False) -> float:
@@ -643,80 +740,99 @@ class LyricsText(QWidget):
 
         for i, lyrics_lines in enumerate(self.lyrics):
             for text, current_index_ratio, alpha, rubys in lyrics_lines:
-                # played: 已经播放过的歌词字, current_char: 正在播放的歌词字, unplayed: 未播放的歌词字
+                # 步骤 1: 分解歌词文本
                 current_index = int(current_index_ratio)
                 ratio = current_index_ratio - current_index
                 played = text[:current_index]
                 current_char = text[current_index] if current_index < len(text) else ""
-                unplayed = text[current_index + 1:] if current_index + 1 < len(text) else ""
-                texts_width = font_metrics.horizontalAdvance(played + current_char + unplayed)
+                unplayed = text[current_index + 1 :]
+                texts = played + current_char + unplayed
 
-                # 计算字符串x坐标
-                if self.width() < texts_width:
-                    if self.width() > font_metrics.horizontalAdvance(current_char + unplayed):
-                        x = self.width() - texts_width
+                # 步骤 2: 预计算注音布局和整行歌词的边界框
+                ruby_layouts = []
+                keep_ruby_y = False
+                if rubys == [(0, 0, "")]:
+                    keep_ruby_y = True
+                elif rubys:
+                    cache_key = (text, tuple(map(tuple, rubys)), self.text_font.pointSizeF())
+                    if cache_key in self.ruby_layouts_cache:
+                        ruby_layouts = self.ruby_layouts_cache[cache_key]
                     else:
-                        x = - font_metrics.horizontalAdvance(played)
+                        ruby_layouts: list[LyricsText.RubyLayoutInfo] = _calculate_ruby_layouts(rubys, texts, font_metrics, rudy_font)
+                        self.ruby_layouts_cache[cache_key] = ruby_layouts
+
+                text_width = font_metrics.horizontalAdvance(texts)
+                line_rect = QRectF(0, 0, text_width, font_height)
+                if ruby_layouts:
+                    min_ruby_x = min(layout.x for layout in ruby_layouts) if ruby_layouts else 0
+                    max_ruby_x = max(layout.x + layout.width for layout in ruby_layouts) if ruby_layouts else text_width
+                    line_rect.setLeft(min(0, min_ruby_x))
+                    line_rect.setRight(max(text_width, max_ruby_x))
+
+                # 步骤 3: 计算最终的X坐标以防止边缘截断
+                x = 0
+                if self.width() < line_rect.width():
+                    # 当歌词过长时，动态调整x坐标以使当前播放字符可见
+                    played_width_in_rect = font_metrics.horizontalAdvance(played) - line_rect.left()
+                    x = self.width() - line_rect.width() if self.width() > (line_rect.width() - played_width_in_rect) else -played_width_in_rect
                 elif i % 2 == 0:
                     # 左对齐
-                    x = 0
+                    x = -line_rect.left()
                 else:
                     # 右对齐
-                    x = self.width() - texts_width * 1.05
+                    x = self.width() - line_rect.width()
 
-                # 绘制注音
-                if rubys:
-                    played_current_width = font_metrics.horizontalAdvance(played) + font_metrics.horizontalAdvance(current_char) * ratio
-                    texts = played + current_char + unplayed
-                    played_rudy = [r for r in rubys if r[1] <= len(played)]
-                    unplayed_rudy = [r for r in rubys if r[0] >= len(played + current_char)]
-                    current_rudy = [r for r in rubys if r not in played_rudy and r not in unplayed_rudy]
+                # 步骤 4: 使用高亮逻辑绘制注音
+                if keep_ruby_y:
+                    y += font_height * 0.7
+                elif ruby_layouts:
+                    ruby_y = y
+                    # 计算原文的绝对高亮分割点
+                    played_split_x_abs = x + font_metrics.horizontalAdvance(played) + font_metrics.horizontalAdvance(current_char) * ratio
 
-                    for ruby_type, ruby in ("played", played_rudy), ("current", current_rudy), ("unplayed", unplayed_rudy):
-                        for (start, end, chars) in ruby:
-                            if not chars:
-                                continue
-                            rudy_x = x + font_metrics.horizontalAdvance(texts[:start])
-                            text_width = font_metrics.horizontalAdvance(texts[start:end])
-                            gap_width, font = get_ruby_gap_font(text_width, chars)
-                            painter.setFont(font)
+                    for layout in ruby_layouts:
+                        painter.setFont(layout.font)
+                        ruby_metrics = layout.metrics
 
-                            if len(chars) == 1:
-                                rudy_x += gap_width * 0.5
+                        # 计算每个注音对应原文片段的绝对起止位置
+                        base_start_x_abs = x + layout.base_start_x
+                        base_width_abs = layout.base_width
 
-                            for char in chars:
-                                char_width = painter.fontMetrics().horizontalAdvance(char)
+                        # 计算高亮分割点在当前原文片段中的比例
+                        segment_ratio = max(0.0, min(1.0, (played_split_x_abs - base_start_x_abs) / base_width_abs if base_width_abs > 0 else 0.0))
 
-                                if ruby_type == "played":
+                        current_ruby_x_abs = x + layout.x
+                        gap_per_char = layout.gap_per_char
+
+                        # 将原文片段的播放比例映射到注音的渲染宽度上，得到注音的绝对高亮分割点
+                        ruby_render_width = layout.width + gap_per_char * (len(layout.chars) - 1)
+                        split_x_for_ruby = current_ruby_x_abs + ruby_render_width * segment_ratio
+
+                        # 逐字符绘制注音并应用高亮
+                        for char in layout.chars:
+                            char_width = ruby_metrics.horizontalAdvance(char)
+                            r = 0.0
+                            if split_x_for_ruby > current_ruby_x_abs:
+                                if split_x_for_ruby >= current_ruby_x_abs + char_width:
                                     r = 1.0
-                                elif ruby_type == "unplayed":
-                                    r = 0.0
-                                elif rudy_x < played_current_width < rudy_x + char_width:
-                                    r = (played_current_width - rudy_x) / char_width
-                                elif played_current_width <= rudy_x:
-                                    r = 1.0
-                                else:
-                                    r = 0.0
-
-                                rudy_x += draw_text(rudy_x, y, r, char, alpha) + gap_width / (len(chars) - 1)
+                                elif char_width > 0:
+                                    r = (split_x_for_ruby - current_ruby_x_abs) / char_width
+                            actual_width = draw_text(current_ruby_x_abs, ruby_y, r, char, alpha, ruby=True)
+                            current_ruby_x_abs += actual_width + gap_per_char
 
                     painter.setFont(self.text_font)
                     y += font_height * 0.7
 
-                # 绘制
+                # 步骤 5: 绘制主歌词文本
+                draw_x = x
                 if played:
-                    # 绘制已播放的部分
-                    x += draw_text(x, y, 1.0, played, alpha)
-
+                    draw_x += draw_text(draw_x, y, 1.0, played, alpha)
                 if current_char:
-                    # 记录当前播放的部分的已播放部分
-                    x += draw_text(x, y, ratio, current_char, alpha)
-
+                    draw_x += draw_text(draw_x, y, ratio, current_char, alpha)
                 if unplayed:
-                    # 绘制未播放的部分
-                    draw_text(x, y, 0.0, unplayed, alpha)
+                    draw_text(draw_x, y, 0.0, unplayed, alpha)
 
-                y += font_height * 1.1  # 调整y坐标以容纳下一行
+                y += font_height * 1.1
 
         painter.end()
 
@@ -732,6 +848,7 @@ class LyricsText(QWidget):
         self.pens.clear()
         self.played_chars_cache.clear()
         self.unplayed_chars_cache.clear()
+        self.ruby_layouts_cache.clear()
 
 
 class DesktopLyricsWidget(DesktopLyricsWidgetBase):
@@ -770,24 +887,24 @@ class DesktopLyricsWidget(DesktopLyricsWidgetBase):
 
         self.playing: bool = False
 
-        if 'prev' not in available_tasks:
+        if "prev" not in available_tasks:
             self.control_bar.perv_button.hide()
         else:
-            self.control_bar.perv_button.clicked.connect(lambda: self.send_task.emit('prev'))
+            self.control_bar.perv_button.clicked.connect(lambda: self.send_task.emit("prev"))
 
-        if 'next' not in available_tasks:
+        if "next" not in available_tasks:
             self.control_bar.next_button.hide()
         else:
-            self.control_bar.next_button.clicked.connect(lambda: self.send_task.emit('next'))
+            self.control_bar.next_button.clicked.connect(lambda: self.send_task.emit("next"))
 
-        if 'pause' not in available_tasks or 'play' not in available_tasks:
+        if "pause" not in available_tasks or "play" not in available_tasks:
             self.control_bar.play_pause_button.hide()
         else:
             self.control_bar.play_pause_button.clicked.connect(self.play_pause_button_clicked)
 
     @Slot()
     def play_pause_button_clicked(self) -> None:
-        self.send_task.emit('pause' if self.playing else 'play')
+        self.send_task.emit("pause" if self.playing else "play")
 
     @cross_thread_func
     def set_playing(self, playing: bool) -> None:
@@ -814,8 +931,8 @@ class DesktopLyricsWidget(DesktopLyricsWidgetBase):
         y = (screen_geometry.height() - window_geometry.height()) / 1.3
         self.move(int(x), int(y))
 
-    def close(self) -> None:
-        logger.info('DesktopLyricsWidget close')
+    def close(self) -> bool:
+        logger.info("DesktopLyricsWidget close")
         cfg["desktop_lyrics_rect"] = (self.x(), self.y(), self.rect().width(), self.rect().height())
         cfg["desktop_lyrics_font_size"] = self.lyrics_text.text_font.pointSizeF()
         self.tray_icon.hide()
@@ -824,6 +941,7 @@ class DesktopLyricsWidget(DesktopLyricsWidgetBase):
         self.selector.deleteLater()
         self.destroy()
         self.deleteLater()
+        return True
 
     @Slot()
     def hide_control_bar(self) -> None:
