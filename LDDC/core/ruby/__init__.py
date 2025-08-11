@@ -30,11 +30,6 @@ def contains_Kanji(text: str) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
-def _is_japanese_char(char: str) -> bool:
-    """判断一个字符是否是日文（汉字或假名）"""
-    return "\u3040" <= char <= "\u309f" or "\u30a0" <= char <= "\u30ff" or "\u4e00" <= char <= "\u9fff"
-
-
 def _tokenize_orig_line(text: str) -> list[Token]:
     """将原始歌词文本分词为Token列表，并在分词阶段处理送假名。"""
     if not text:

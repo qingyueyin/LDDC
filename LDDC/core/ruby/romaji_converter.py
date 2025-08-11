@@ -85,8 +85,7 @@ def _preprocess_romaji(romaji: str) -> str:
     text = re.sub(r"([a-z])-", replace_long_vowel, text)
 
     # 修正一些常见的错误拼写
-    text = re.sub(r"\buta\b", "futa", text)
-    return text
+    return re.sub(r"\buta\b", "futa", text)
 
 
 def roma_to_hiragana(romaji: str) -> str:

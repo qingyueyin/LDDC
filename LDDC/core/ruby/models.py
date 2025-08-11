@@ -30,9 +30,6 @@ class Token(NamedTuple):
     group_id: int | None = None  # 来自同一词典词的Token共享一个group_id
 
 
-# --- 以下是为新匹配引擎建议添加的模型 ---
-
-
 class RuleType(Enum):
     """匹配规则的类型"""
 
@@ -49,7 +46,7 @@ class MatchRule:
     name: str  # 规则的唯一名称，便于调试，例如 "particle_ha_wa"
     cost: int  # 应用此规则的代价，0表示等价替换
     rule_type: RuleType  # 规则类型
-    content: Callable[[str, list[Token], Token], str]  | tuple[str, str]  # 规则内容。对于SUBSTITUTION，是(from, to)元组,对于FUNCTION，是可调用对象。
+    content: Callable[[str, list[Token], Token], str] | tuple[str, str]  # 规则内容。对于SUBSTITUTION，是(from, to)元组,对于FUNCTION，是可调用对象。
     # 预计算此规则可能引入的字符集合，用于快速过滤。
     # 例如，对于 ("は", "わ")，此集合为 {'わ'}。
     # 如果目标字符串中不包含 'わ'，则此规则可以被安全地跳过。
