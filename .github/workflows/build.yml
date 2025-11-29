@@ -32,6 +32,7 @@ jobs:
             - uses: actions/checkout@v4
 
             - uses: actions/setup-python@v5
+              id: setup-python
               with:
                 python-version: 3.12
                 architecture: ${{ matrix.arch }}
@@ -55,6 +56,8 @@ jobs:
                 fi
             
             - name: Install dependencies
+              env:
+                UV_PROJECT_ENVIRONMENT: ${{ steps.setup-python.outputs.python-path }}
               run: |
                 uv sync --locked --extra dev
                 uv pip install imageio
@@ -312,13 +315,13 @@ jobs:
             python-version: 3.12
 
         - name: Setup uv
-          uses: astral-sh/setup-uv@v1
+          uses: astral-sh/setup-uv@v7
         - name: Install dependencies
           run: |
-            uv pip sync --system-site-packages --all-extras
+            uv sync --locked --extra dev
         - name: Build wheel
           run: |
-            python -m build
+            uv run build
         - name: Upload
           uses: actions/upload-artifact@v4
           with:
