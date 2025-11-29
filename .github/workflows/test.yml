@@ -31,10 +31,12 @@ jobs:
                 python-version: 3.12
                 architecture: ${{ matrix.arch }}
 
+            - name: Setup uv
+              uses: astral-sh/setup-uv@v7
+
             - name: Install dependencies
               run: |
-                pip install -Ur requirements-tests.txt
-                pip install .
+                uv sync --locked --extra test
 
             - name: Install FFmpeg(Linux)
               if: runner.os == 'Linux'

@@ -46,6 +46,10 @@ classifiers = [
     "Topic :: Utilities",
 ]
 
+[project.optional-dependencies]
+dev = ["PySide6>=6.8.0", "build", "twine"]
+test = ["pydub", "pytest", "pytest-qt", "pytest-cov", "coredumpy"]
+
 [project.urls]
 homepage = "https://github.com/chenmozhijin/LDDC"
 repository = "https://github.com/chenmozhijin/LDDC"

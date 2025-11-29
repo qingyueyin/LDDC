@@ -35,6 +35,9 @@ jobs:
               with:
                 python-version: 3.12
                 architecture: ${{ matrix.arch }}
+            
+            - name: Setup uv
+              uses: astral-sh/setup-uv@v7
 
             - name: Get arch
               id: arch
@@ -53,8 +56,8 @@ jobs:
             
             - name: Install dependencies
               run: |
-                pip install -Ur requirements.txt
-                pip install imageio
+                uv sync --locked --extra dev
+                uv pip install imageio
             
             - name: Install EGL/upx
               if: ${{ runner.os == 'Linux' }}
@@ -147,7 +150,7 @@ jobs:
                 PYTHONPATH: ${{ github.workspace }}
 
             - name: Build Executable(Windows)
-              uses: chenmozhijin/Nuitka-Action@main
+              uses: Nuitka/Nuitka-Action@main
               if : ${{ runner.os == 'Windows' }}
               with:
                 nuitka-version: main
@@ -308,9 +311,11 @@ jobs:
           with:
             python-version: 3.12
 
+        - name: Setup uv
+          uses: astral-sh/setup-uv@v1
         - name: Install dependencies
           run: |
-            pip install -Ur requirements-dev.txt
+            uv pip sync --system-site-packages --all-extras
         - name: Build wheel
           run: |
             python -m build
